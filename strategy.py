@@ -1,7 +1,26 @@
-"""Decide what to BUY and SELL based on momentum + stop-loss rules.
+"""Clenow "Stocks on the Move" — published momentum strategy.
 
-Pure function: given current state and prices, return a list of orders.
-No side effects, no broker calls. tick.py executes the orders via paper_book.
+Sources (cite-able, parameters from the book, not invented):
+- Clenow, Andreas (2015) "Stocks on the Move: Beating the Market with Hedge Fund
+  Momentum Strategies". Chapter 7 has the full rule set.
+- Reference implementations:
+    * https://github.com/teddykoker/blog (notebook 2019-05-19)
+    * https://github.com/skyte/momentum
+    * https://github.com/Suchismit4/NiftyOnTheMove
+
+Rules implemented here:
+1. Momentum score = annualized exp regression slope * R^2 over 90 days
+2. Trend filter: drop stocks below their 100-day moving average
+3. Market regime filter: only open new positions when SPY > 200-day MA
+4. Selection: top-N by momentum, equal weight
+5. Exit: stock falls out of top-N OR drops below 100-day MA
+6. Rebalance: weekly (Wednesday in the book; we follow the same)
+7. Initial run: if portfolio empty, do an immediate rebalance regardless of weekday
+
+Simplification vs the book:
+- We use EQUAL weight instead of ATR-based risk parity sizing. Book's ATR
+  sizing requires per-stock daily volatility and is non-trivial; equal weight
+  is also a valid published approach (Asness/Moskowitz). Future work.
 """
 from dataclasses import dataclass
 from datetime import date
@@ -20,84 +39,103 @@ class Order:
     reason: str
 
 
+REBALANCE_WEEKDAY = 2          # Wednesday (per Clenow). Mon=0, Sun=6.
+TREND_FILTER_DAYS = 100        # 100-day MA filter
+REGIME_BENCHMARK = "SPY"
+REGIME_MA_DAYS = 200
+
+
 def _is_rebalance_day(today: date) -> bool:
-    """True only on the first Mon-Fri of the month."""
-    if today.weekday() >= 5:
-        return False
-    for d in range(1, today.day):
-        if date(today.year, today.month, d).weekday() < 5:
-            return False
-    return True
+    return today.weekday() == REBALANCE_WEEKDAY
+
+
+def _passes_trend_filter(symbols: list[str]) -> set[str]:
+    """Keep only symbols whose latest close > 100-day MA."""
+    flags = market.above_moving_average(symbols, TREND_FILTER_DAYS)
+    return {s for s, ok in flags.items() if ok}
+
+
+def _rank_by_momentum(symbols: list[str]) -> list[tuple[str, float]]:
+    scores = market.momentum_scores(symbols, lookback_days=config.MOMENTUM_LOOKBACK_DAYS)
+    return sorted(scores.items(), key=lambda kv: kv[1], reverse=True)
 
 
 def stop_loss_orders(price_map: dict[str, float]) -> list[Order]:
-    """Sell any position whose unrealized loss exceeds the stop-loss threshold."""
+    """Per Clenow rule 5: exit if stock drops below its 100-day MA.
+
+    Approximation: we also keep the simple % stop-loss as a safety net
+    against thin-data symbols where MA can't be computed.
+    """
     orders: list[Order] = []
-    for symbol, pos in paper_book.load_positions().items():
-        current = price_map.get(symbol)
-        if current is None or pos["avg_cost"] <= 0:
-            continue
-        loss_pct = (pos["avg_cost"] - current) / pos["avg_cost"]
-        if loss_pct >= config.STOP_LOSS_PCT:
-            orders.append(Order(
-                action="SELL",
-                symbol=symbol,
-                quantity=pos["quantity"],
-                reason=f"stop_loss {loss_pct:.1%}",
-            ))
+    positions = paper_book.load_positions()
+    if not positions:
+        return orders
+
+    above_ma = market.above_moving_average(list(positions.keys()), TREND_FILTER_DAYS)
+    for symbol, pos in positions.items():
+        sell = False
+        reason = ""
+        if symbol in above_ma and not above_ma[symbol]:
+            sell = True
+            reason = "exit_below_100ma"
+        else:
+            current = price_map.get(symbol)
+            if current and pos["avg_cost"] > 0:
+                loss = (pos["avg_cost"] - current) / pos["avg_cost"]
+                if loss >= config.STOP_LOSS_PCT:
+                    sell = True
+                    reason = f"hard_stop {loss:.1%}"
+        if sell:
+            orders.append(Order("SELL", symbol, pos["quantity"], reason))
     return orders
 
 
 def rebalance_orders(price_map: dict[str, float]) -> list[Order]:
-    """Pick top-N by 6-month momentum. Sell what's out, buy what's in. Equal weight."""
-    symbols = universe.symbols()
-    scores = market.momentum_scores(symbols, config.MOMENTUM_LOOKBACK_DAYS)
-    if not scores:
-        return []
+    """Per Clenow: drop stocks that fell out of top-N, add new ones up to N positions.
 
-    ranked = sorted(scores.items(), key=lambda kv: kv[1], reverse=True)
-    targets = [s for s, score in ranked[: config.TOP_N] if score > 0]
+    Market regime filter gates new BUYs (not exits — we still let losers leave).
+    """
+    universe_syms = universe.symbols()
+
+    eligible = _passes_trend_filter(universe_syms)
+    ranked = _rank_by_momentum(list(eligible))
+    target_set = [s for s, score in ranked[: config.TOP_N] if score > 0]
 
     current = paper_book.load_positions()
-    cash = paper_book.load_cash()
-    equity = cash + paper_book.positions_value(price_map)
-    per_target_value = equity / max(len(targets), 1) if targets else 0
-
     orders: list[Order] = []
 
-    # Sells: any current holding not in targets
+    # Sells: any current holding not in target
     for symbol in list(current.keys()):
-        if symbol not in targets:
-            orders.append(Order(
-                action="SELL",
-                symbol=symbol,
-                quantity=current[symbol]["quantity"],
-                reason="rebalance_exit",
-            ))
+        if symbol not in target_set:
+            orders.append(Order("SELL", symbol, current[symbol]["quantity"], "rebalance_exit"))
 
-    # Buys: any target not currently held OR underweight
-    for symbol in targets:
+    if not market.market_regime_ok(REGIME_BENCHMARK, REGIME_MA_DAYS):
+        # bear market: do not open new positions. Existing exits still apply.
+        return orders
+
+    # Buys: equal-weight target_set with current equity
+    cash = paper_book.load_cash()
+    equity = cash + paper_book.positions_value(price_map)
+    if not target_set:
+        return orders
+    per_slot = equity / len(target_set)
+
+    for symbol in target_set:
         price = price_map.get(symbol)
         if not price or price <= 0:
             continue
         current_qty = current.get(symbol, {"quantity": 0})["quantity"]
-        current_value = current_qty * price
-        deficit = per_target_value - current_value
-        if deficit > price:  # at least 1 share to add
-            qty_to_add = deficit / price
-            orders.append(Order(
-                action="BUY",
-                symbol=symbol,
-                quantity=round(qty_to_add, 4),
-                reason=f"rebalance_target_rank_{targets.index(symbol)+1}",
-            ))
+        deficit_value = per_slot - current_qty * price
+        if deficit_value > price:
+            qty = round(deficit_value / price, 4)
+            orders.append(Order("BUY", symbol, qty, f"rebalance_rank_{target_set.index(symbol)+1}"))
 
     return orders
 
 
 def decide(today: date, price_map: dict[str, float]) -> list[Order]:
-    """Run all decision rules in order. Stop-loss always; rebalance once a month."""
+    """Daily entry point: stop-loss always; rebalance Wed or when empty."""
     orders = stop_loss_orders(price_map)
-    if _is_rebalance_day(today):
+    if _is_rebalance_day(today) or not paper_book.load_positions():
         orders.extend(rebalance_orders(price_map))
     return orders

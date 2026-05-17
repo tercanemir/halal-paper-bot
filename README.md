@@ -4,12 +4,21 @@ Tamamen simülasyon. Hiçbir borsaya bağlanmıyor, hiçbir gerçek emir vermiyo
 
 3 ay sonra `data/trades.csv` ve `data/equity_history.csv` dosyalarına bakarsın, hangi hisseyi ne zaman alıp sattığını ve toplam paper PnL'ini görürsün.
 
-## Mantık
+## Strateji: Clenow "Stocks on the Move"
 
-- **Evren:** `data/halal_us_stocks.csv` (40 hisse, manuel curated, Wahed HLAL'a yakın liste)
-- **Strateji:** Her ayın ilk iş günü, evreni son 6 ay getirisine göre sırala, top 5 hisseyi eşit ağırlıkta tut
-- **Stop-loss:** Pozisyonun ortalama maliyetinin %15 altına düşerse otomatik sat
-- **Başlangıç sermayesi:** Sanal $10.000
+Yayınlanmış kitaptan birebir alınmış kurallar (Andreas Clenow, 2015). Implementasyon referansları:
+- [teddykoker/blog notebook](https://github.com/teddykoker/blog/blob/master/_posts/2019-05-19-momentum-strategy-from-stocks-on-the-move-in-python.md)
+- [skyte/momentum](https://github.com/skyte/momentum)
+
+Kurallar:
+- **Universe:** `data/halal_us_stocks.csv` (40 hisse, Wahed HLAL'a yakın katılım uyumlu liste)
+- **Momentum skoru:** 90 günlük annualized exponential regression slope × R²
+- **Trend filtresi:** Sadece 100 günlük MA üstündeki hisseler aday
+- **Piyasa rejimi:** SPY 200 günlük MA üstündeyken yeni alım, altındaysa sadece çıkış
+- **Seçim:** Top 5 momentum, eşit ağırlık
+- **Çıkış:** Top-N'den düştü VEYA 100 MA altına kırıldı VEYA %15 hard stop
+- **Rebalance:** Çarşamba günleri + ilk run
+- **Sermaye:** $10.000 sanal başlangıç
 
 ## Çalıştırma
 

@@ -50,13 +50,29 @@ Eklemeden önce sor: pandas-ta? sklearn? matplotlib? — Şimdilik yasak, MVP'yi
 | `data/positions.json` | Şu anki holdings |
 | `data/equity_history.csv` | Günlük end-of-day snapshot |
 
-## 5. Strateji Kuralları (mevcut MVP)
+## 5. Strateji Kuralları — Clenow "Stocks on the Move"
 
-- **Universe:** `data/halal_us_stocks.csv` — 40 büyük US hissesi, Wahed HLAL'a yakın
-- **Sinyal:** Aylık rebalance, top-5 hisse 6 aylık momentum'a göre, eşit ağırlık
-- **Stop-loss:** Avg cost'un %15 altında otomatik sat
-- **Cash management:** Sells önce çalışır, sonra buys; cash yetersizse buy quantity ölçeklenir
-- **Rebalance günü:** Her ayın ilk iş günü (Pzt-Cum, ayın 1-7'si arası)
+**Kaynak (parametreler kitaptan, Claude uydurmadı):**
+- Clenow, Andreas (2015) "Stocks on the Move: Beating the Market with Hedge Fund Momentum Strategies"
+- Implementasyon referansları:
+  - https://github.com/teddykoker/blog (notebook 2019-05-19)
+  - https://github.com/skyte/momentum
+  - https://github.com/Suchismit4/NiftyOnTheMove
+
+**Kurallar:**
+
+1. **Momentum skoru:** 90 günlük annualized exponential regression slope × R² (kitap, sayfa ~70). Verbatim port `market.clenow_momentum()` içinde.
+2. **Trend filtresi:** Sadece 100 günlük MA üstündeki hisseler seçilebilir
+3. **Piyasa rejimi:** Sadece SPY 200 günlük MA üstündeyken yeni alım yap (bear market'te mevcut pozisyon satışı devam eder, yeni alım yok)
+4. **Seçim:** Filtrelerden geçenleri momentum'a göre sırala, top-N al
+5. **Pozisyon büyüklüğü:** Eşit ağırlık (kitabın ATR-tabanlı sizing yöntemi MVP için basitleştirildi; gelecekte eklenebilir)
+6. **Çıkış:** Hisse top-N'den düştü VEYA 100 MA altına kırıldı VEYA %15 hard stop tetiklendi (son ikisi de bookta yer alır)
+7. **Rebalance:** Çarşamba günleri (kitabın haftalık ritmi) VEYA pozisyon boşken (ilk run)
+8. **Cash management:** Sells önce, sonra buys; cash yetersizse buy quantity ölçeklenir
+
+**Universe:** `data/halal_us_stocks.csv` — 40 büyük US hissesi, Wahed HLAL'a yakın katılım uyumlu liste
+
+**Beklenen performans (kitap + topluluk backtest'leri):** ~%9 CAGR, ~%11 max drawdown. S&P benchmark'ı geçemeyebilir ama düşük volatilite. Tartışılan: parametreler 1990-2014 dataset'ine optimize edilmiş, ileride aynı performans garantisi yok.
 
 ## 6. Sert Kurallar
 

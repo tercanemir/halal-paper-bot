@@ -15,8 +15,7 @@ EQUITY_FILE = DATA_DIR / "equity_history.csv"
 # Paper portfolio
 STARTING_CASH = float(os.getenv("STARTING_CASH", "10000"))
 
-# Strategy parameters
-TOP_N = int(os.getenv("TOP_N", "5"))                    # how many stocks to hold
-MOMENTUM_LOOKBACK_DAYS = int(os.getenv("MOMENTUM_LOOKBACK_DAYS", "126"))  # ~6 months
-REBALANCE_DAY_OF_MONTH = int(os.getenv("REBALANCE_DAY_OF_MONTH", "1"))    # rebalance on first trading day of month
-STOP_LOSS_PCT = float(os.getenv("STOP_LOSS_PCT", "0.15"))                 # 15% stop loss
+# Strategy parameters (Clenow "Stocks on the Move", chapter 7)
+TOP_N = int(os.getenv("TOP_N", "5"))                                      # number of positions
+MOMENTUM_LOOKBACK_DAYS = int(os.getenv("MOMENTUM_LOOKBACK_DAYS", "90"))   # book uses 90 trading days
+STOP_LOSS_PCT = float(os.getenv("STOP_LOSS_PCT", "0.15"))                 # safety net only; main exit is below 100-day MA
