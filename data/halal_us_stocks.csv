@@ -1,0 +1,41 @@
+symbol,name,sector
+AAPL,Apple Inc,Technology
+MSFT,Microsoft,Technology
+NVDA,Nvidia,Technology
+GOOGL,Alphabet Class A,Technology
+META,Meta Platforms,Technology
+TSLA,Tesla,Consumer Cyclical
+AMD,Advanced Micro Devices,Technology
+ORCL,Oracle,Technology
+ADBE,Adobe,Technology
+CRM,Salesforce,Technology
+TSM,Taiwan Semiconductor,Technology
+ASML,ASML Holding,Technology
+INTC,Intel,Technology
+JNJ,Johnson & Johnson,Healthcare
+LLY,Eli Lilly,Healthcare
+ABBV,AbbVie,Healthcare
+MRK,Merck,Healthcare
+PFE,Pfizer,Healthcare
+BMY,Bristol Myers Squibb,Healthcare
+UNH,UnitedHealth Group,Healthcare
+AMGN,Amgen,Healthcare
+TMO,Thermo Fisher,Healthcare
+ABT,Abbott Laboratories,Healthcare
+MDT,Medtronic,Healthcare
+DHR,Danaher,Healthcare
+COST,Costco,Consumer Defensive
+WMT,Walmart,Consumer Defensive
+HD,Home Depot,Consumer Cyclical
+LOW,Lowe's,Consumer Cyclical
+NKE,Nike,Consumer Cyclical
+XOM,Exxon Mobil,Energy
+CVX,Chevron,Energy
+COP,ConocoPhillips,Energy
+EOG,EOG Resources,Energy
+HON,Honeywell,Industrial
+CAT,Caterpillar,Industrial
+GE,GE Aerospace,Industrial
+LMT,Lockheed Martin,Industrial
+RTX,RTX Corporation,Industrial
+DE,Deere & Company,Industrial
