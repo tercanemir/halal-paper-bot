@@ -14,3 +14,4 @@ timestamp,symbol,action,quantity,price,value,reason
 2026-06-24T22:47:33+00:00,TSM,BUY,2.872800,440.8300,1266.42,rebalance_rank_5
 2026-07-01T22:45:26+00:00,TSM,SELL,2.872800,444.2300,1276.18,rebalance_exit
 2026-07-01T22:45:26+00:00,ASML,BUY,0.692400,1843.0400,1276.12,rebalance_rank_5
+2026-07-15T22:27:18+00:00,INTC,BUY,0.000700,102.9900,0.07,rebalance_rank_2
